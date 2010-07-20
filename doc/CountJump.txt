@@ -27,6 +27,8 @@ help file sections, diff hunks, embedded macros, and so on...
 RELATED WORKS *
 - motpat.vim (vimscript #3030) offers similar functions to setup motion
   mappings, but no text objects (yet). 
+- textobj-user (vimscript #2100) has support for user-defined text objects via
+  regular expressions. 
 
 ==============================================================================
 USAGE							      *CountJump-usage*
@@ -121,13 +123,30 @@ KNOWN PROBLEMS					     *CountJump-known-problems*
 - An outer text object cannot consist of the same, multiple characters;
   nothing will be selected (because the end pattern also matches at the begin
   position). A same single character pattern works, though. 
+- For blockwise text objects, the original cursor position should be required
+  to be inside the selection. However, this requires translation of the
+  byte-indices here into screen columns, and is thus non-trivial to implement. 
 
 TODO							       *CountJump-todo*
 
 IDEAS							      *CountJump-ideas*
 
+- Add configuration to change behavior when there are no [count] matches: 
+  1. obey the 'wrapscan' option, like |]s| and/or
+  2. jump as many matches as possible, still beep to indicate the actual
+     target was not reached
+
 ==============================================================================
 HISTORY							    *CountJump-history*
+
+1.10    19-Jul-2010
+- Changed behavior if there aren't [count] matches: Instead of jumping to the
+  last available match (and ringing the bell), the cursor stays at the
+  original position, like with the old vi-compatible motions. 
+- ENH: Only adding to jump list if there actually is a match. This is like the
+  built-in Vim motions work. 
+- FIX: For a linewise text object, the end cursor column is not important; do
+  not compare with the original cursor column in this case. 
 
 1.00	22-Jun-2010
 First published version. 

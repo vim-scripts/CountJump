@@ -8,6 +8,14 @@
 " Maintainer:	Ingo Karkat <ingo@karkat.de>
 "
 " REVISION	DATE		REMARKS 
+"   1.10.008	15-Jul-2010	Changed behavior if there aren't [count]
+"				matches: Instead of jumping to the last
+"				available match (and ringing the bell), the
+"				cursor stays at the original position, like with
+"				the old vi-compatible motions. 
+"				ENH: Only adding to jump list if there actually
+"				is a match. This is like the built-in Vim
+"				motions work. 
 "   1.00.007	22-Jun-2010	Added special mode 'O' for
 "				CountJump#CountJump() with special correction
 "				for a pattern to end in operator-pending mode. 
@@ -28,13 +36,41 @@
 "	001	12-Feb-2009	file creation
 
 function! CountJump#CountSearch( count, searchArguments )
+"*******************************************************************************
+"* PURPOSE:
+"   Search for the <count>th occurrence of the passed search() pattern and
+"   arguments. 
+"
+"* ASSUMPTIONS / PRECONDITIONS:
+"   None. 
+"
+"* EFFECTS / POSTCONDITIONS:
+"   Jumps to the <count>th occurrence and opens any closed folds there. 
+"   If the pattern doesn't match (<count> times), a beep is emitted. 
+"
+"* INPUTS:
+"   a:count Number of occurrence to jump to. 
+"   a:searchArguments	Arguments to search() as a List [{pattern}, {flags}, ...]
+"
+"* RETURN VALUES: 
+"   List with the line and column position, or [0, 0], like searchpos(). 
+"*******************************************************************************
+    let l:save_view = winsaveview()
     let l:searchArguments = copy(a:searchArguments)
+
     for l:i in range(1, a:count)
 	let l:matchPos = call('searchpos', l:searchArguments)
 	if l:matchPos == [0, 0]
-	    " Ring the bell to indicate that no further match exists. This is
-	    " unlike the old vi-compatible motions, but consistent with newer
-	    " movements like ]s. 
+	    if l:i > 1
+		" (Due to the count,) we've already moved to an intermediate
+		" match. Undo that to behave like the old vi-compatible
+		" motions. (Only the ]s motion has different semantics; it obeys
+		" the 'wrapscan' setting and stays at the last possible match if
+		" the setting is off.) 
+		call winrestview(l:save_view)
+	    endif
+
+	    " Ring the bell to indicate that no further match exists. 
 	    "
 	    " As long as this mapping does not exist, it causes a beep in both
 	    " normal and visual mode. This is easier than the customary "normal!
@@ -83,7 +119,8 @@ function! CountJump#CountJump( mode, ... )
 "* RETURN VALUES: 
 "   List with the line and column position, or [0, 0], like searchpos(). 
 "*******************************************************************************
-    normal! m'
+    let l:save_view = winsaveview()
+
     if a:mode ==# 'v'
 	normal! gv
     endif
@@ -105,7 +142,7 @@ function! CountJump#CountJump( mode, ... )
 	    " temporarily to the global 'whichwrap' setting. 
 	    " Without this, the motion would leave out the last character in
 	    " the line. I've also experimented with temporarily setting
-	    " "set virtualedit=onemore" , but that didn't work. 
+	    " "set virtualedit=onemore", but that didn't work. 
 	    let l:save_ww = &whichwrap
 	    set whichwrap+=l
 	    normal! l
@@ -114,7 +151,15 @@ function! CountJump#CountJump( mode, ... )
 	return l:matchPos
     endif
 
-    return CountJump#CountSearch(v:count1, a:000)
+    let l:matchPosition = CountJump#CountSearch(v:count1, a:000)
+    if l:matchPosition != [0, 0]
+	" Add the original cursor position to the jump list. 
+	call winrestview(l:save_view)
+	normal! m'
+	call setpos('.', [0] + l:matchPosition + [0])
+    endif
+
+    return l:matchPosition
 endfunction
 
 " vim: set sts=4 sw=4 noexpandtab ff=unix fdm=syntax :
