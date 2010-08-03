@@ -9,6 +9,17 @@
 " Maintainer:	Ingo Karkat <ingo@karkat.de>
 "
 " REVISION	DATE		REMARKS 
+"   1.20.007	02-Aug-2010	The adjustment movements after the jumps to the
+"				text object boundaries now do not cause beeps if
+"				that movement cannot be done (e.g. a 'j' at the
+"				end of the buffer). 
+"   1.20.006	21-Jul-2010	Only creating the visual selection for the text
+"				object after both begin and end position have
+"				been determined to be existing. This avoids
+"				having to abort the visual selection when
+"				there's no end position and allows to use 'gv'
+"				to re-enter the previous visual mode with
+"				previously selected text. 
 "   1.10.005	19-Jul-2010	FIX: For a linewise text object, the end cursor
 "				column is not important; do not compare with the
 "				original cursor column in this case. 
@@ -54,7 +65,7 @@ endfunction
 "			outer delimiters. 
 "ax			Select [count] text blocks delimited by ??? including
 "			the delimiters. 
-function! CountJump#TextObject#TextObjectWithJumpFunctions( mode, isInner, selectionMode, JumpToBegin, JumpToEnd )
+function! CountJump#TextObject#TextObjectWithJumpFunctions( mode, isInner, isExcludeBoundaries, selectionMode, JumpToBegin, JumpToEnd )
 "*******************************************************************************
 "* PURPOSE:
 "   Creates a visual selection (in a:selectionMode) around the <count>'th
@@ -75,7 +86,11 @@ function! CountJump#TextObject#TextObjectWithJumpFunctions( mode, isInner, selec
 "   a:mode  Mode for the text object; either 'o' (operator-pending) or 'v'
 "	    (visual). 
 "   a:isInner	Flag whether this is an "inner" text object (i.e. it excludes
-"		the boundaries, or an "outer" one. 
+"		the boundaries, or an "outer" one. This variable is passed to
+"		the a:JumpToBegin and a:JumpToEnd functions. 
+"   a:isExcludeBoundaries   Flag whether the matching boundaries should not be
+"			    part of the text object. Except for special cases,
+"			    the value should correspond with a:isInner. 
 "   a:selectionMode Specifies how the text object selects text; either 'v', 'V'
 "		    or "\<C-V>". 
 "   a:JumpToBegin   Funcref that jumps to the beginning of the text object. 
@@ -120,14 +135,14 @@ function! CountJump#TextObject#TextObjectWithJumpFunctions( mode, isInner, selec
     try
 	let l:beginPosition = call(a:JumpToBegin, [1, a:isInner])
 	if l:beginPosition != [0, 0]
-	    if a:isInner
+	    if a:isExcludeBoundaries
 		if l:isLinewise
-		    normal! j
+		    silent! normal! j
 		else
-		    normal! l
+		    silent! normal! l
 		endif
 	    endif
-	    execute 'normal!' a:selectionMode
+	    let l:beginPosition = getpos('.')
 
 	    let l:endPosition = call(a:JumpToEnd, [l:count, a:isInner])
 	    if l:endPosition == [0, 0] ||
@@ -151,23 +166,33 @@ function! CountJump#TextObject#TextObjectWithJumpFunctions( mode, isInner, selec
 		call winrestview(l:save_view)
 	    else
 		let l:isSelected = 1
-		if l:isLinewise && a:isInner
-		    normal! k
+
+		if l:isLinewise && a:isExcludeBoundaries
+		    silent! normal! k
 		else
-		    if ! l:isExclusive && a:isInner
-			normal! h
-		    elseif l:isExclusive && ! a:isInner
-			normal! l
+		    if ! l:isExclusive && a:isExcludeBoundaries
+			silent! normal! h
+		    elseif l:isExclusive && ! a:isExcludeBoundaries
+			silent! normal! l
 		    endif
 		endif
+
+		let l:endPosition = getpos('.')
+
+		" Now that we know that both begin and end positions exist,
+		" create the visual selection using the corrected positions. 
+		call setpos('.', l:beginPosition)
+		execute 'normal!' a:selectionMode
+		call setpos('.', l:endPosition)
 	    endif
 	endif
 
 	if ! l:isSelected && a:mode ==# 'v'
-	    " Re-enter visual mode if no text object could be selected. This
-	    " must not be done in operator-pending mode, or the operator would
-	    " work on the selection! 
-	    execute 'normal!' a:selectionMode
+	    " Re-enter the previous visual mode if no text object could be
+	    " selected. 
+	    " This must not be done in operator-pending mode, or the
+	    " operator would work on the selection! 
+	    normal! gv
 	endif
     finally
 	let &whichwrap = l:save_whichwrap
@@ -193,7 +218,11 @@ function! CountJump#TextObject#MakeWithJumpFunctions( mapArgs, textObjectKey, ty
 "   a:textObjectKey	Mapping key [sequence] after the mandatory i/a which
 "			start the mapping for the text object. 
 "   a:types		String containing 'i' for inner and 'a' for outer text
-"			objects. 
+"			objects.
+"			Use 'I' if you want the inner jump _include_ the text
+"			object's boundaries, and 'A' if you want the outer jump
+"			to _exclude_ the boundaries. This is only necessary in
+"			special cases. 
 "   a:selectionMode	Type of selection used between the patterns:
 "			'v' for characterwise, 'V' for linewise, '<CTRL-V>' for
 "			blockwise. 
@@ -206,9 +235,11 @@ function! CountJump#TextObject#MakeWithJumpFunctions( mapArgs, textObjectKey, ty
 "   The jump functions must take two arguments:
 "	JumpToBegin( count, isInner )
 "	JumpToEnd( count, isInner )
-"   a:count	Number of blocks to jump to. 
-"   a:isInner	Flag whether the jump should be to the inner or outer delimiter
-"		of the block. 
+"	a:count	Number of blocks to jump to. 
+"	a:isInner	Flag whether the jump should be to the inner or outer
+"			delimiter of the block. 
+"   Both funcrefs must return a list [lnum, col], like searchpos(). This should
+"   be the jump position (or [0, 0] if a jump wasn't possible). 
 "   They should position the cursor to the appropriate position in the current
 "   window. 
 "
@@ -217,16 +248,20 @@ function! CountJump#TextObject#MakeWithJumpFunctions( mapArgs, textObjectKey, ty
 "*******************************************************************************
     for l:type in split(a:types, '\zs')
 	if l:type ==# 'a'
-	    let l:isInner = 0
+	    let [l:isInner, l:isExcludeBoundaries] = [0, 0]
+	elseif l:type ==# 'A'
+	    let [l:isInner, l:isExcludeBoundaries] = [0, 1]
 	elseif l:type ==# 'i'
-	    let l:isInner = 1
+	    let [l:isInner, l:isExcludeBoundaries] = [1, 1]
+	elseif l:type ==# 'I'
+	    let [l:isInner, l:isExcludeBoundaries] = [1, 0]
 	else
-	    throw "ASSERT: Type must be either 'a' or 'i', but is: '" . l:type . "'! " 
+	    throw 'ASSERT: Unknown type ' . string(l:type) . ' in ' . string(a:types)
 	endif
 	for l:mode in ['o', 'v']
 	    execute escape(
-	    \   printf("%snoremap <silent> %s %s :<C-U>call CountJump#TextObject#TextObjectWithJumpFunctions('%s', %s, '%s', %s, %s)<CR>",
-	    \   l:mode, a:mapArgs, (l:type . a:textObjectKey), l:mode, l:isInner, a:selectionMode, string(a:JumpToBegin), string(a:JumpToEnd)
+	    \   printf("%snoremap <silent> %s %s :<C-U>call CountJump#TextObject#TextObjectWithJumpFunctions('%s', %s, %s, '%s', %s, %s)<CR>",
+	    \   l:mode, a:mapArgs, (tolower(l:type) . a:textObjectKey), l:mode, l:isInner, l:isExcludeBoundaries, a:selectionMode, string(a:JumpToBegin), string(a:JumpToEnd)
 	    \   ), '|'
 	    \)
 	endfor
@@ -275,6 +310,10 @@ function! CountJump#TextObject#MakeWithCountSearch( mapArgs, textObjectKey, type
 "   None. 
 "*******************************************************************************
     let l:scope = (a:mapArgs =~# '<buffer>' ? 'b:' : 's:')
+
+    if a:types !~# '^[ai]\+$'
+	throw "ASSERT: Type must consist of 'a' and/or 'i', but is: '" . a:types . "'" 
+    endif
 
     " If only either an inner or outer text object is defined, the generated
     " function must include the type, so that it is possible to separately
@@ -327,5 +366,4 @@ endfunction
 
 let &cpo = s:save_cpo
 unlet s:save_cpo
-
 " vim: set sts=4 sw=4 noexpandtab ff=unix fdm=syntax :
