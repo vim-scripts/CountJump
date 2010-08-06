@@ -35,8 +35,16 @@ text regions that can be defined by continuous lines that match a particular
 pattern, e.g. comment blocks that all start with /^\s*#/. 
 
 SEE ALSO *
+The following ftplugins use this plugin: 
+
+diff_movement	  (vimscript #3180): Movement over diff hunks with ]] etc.
+fortunes_movement (vimscript #3181): Movement over email fortunes with ]] etc.
+help_movement     (vimscript #3179): Movement over Vim help sections with ]] etc.
+mail_movement     (vimscript #3182): Movement over email quotes with ]] etc.
+
 
 RELATED WORKS *
+
 - motpat.vim (vimscript #3030) offers similar functions to setup motion
   mappings, but no text objects (yet). 
 - textobj-user (vimscript #2100) has support for user-defined text objects via
@@ -179,6 +187,10 @@ IDEAS							      *CountJump-ideas*
 
 ==============================================================================
 HISTORY							    *CountJump-history*
+
+1.22	06-Aug-2010
+- No more motion mappings and text objects for select mode; as the mappings
+  start with a printable character, no select-mode mapping should be defined. 
 
 1.21	03-Aug-2010
 - FIX: A 2]] jump inside a region (unless last line) jumped like a 1]] jump.
