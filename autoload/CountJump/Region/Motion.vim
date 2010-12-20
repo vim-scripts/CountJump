@@ -2,6 +2,7 @@
 " lines. 
 "
 " DEPENDENCIES:
+"   - CountJump.vim, CountJump/Region.vim autoload scripts. 
 "
 " Copyright: (C) 2010 Ingo Karkat
 "   The VIM LICENSE applies to this script; see ':help copyright'. 
