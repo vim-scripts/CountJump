@@ -45,6 +45,13 @@ help_movement     (vimscript #3179): Movement over Vim help sections with ]] etc
 mail_movement     (vimscript #3182): Movement over email quotes with ]] etc.
 JumpToTrailingWhitespace (vimscript #3968): Motions to locate unwanted
 					    whitespace at the end of lines.
+TaskMotion        (vimscript #3990): Motions to task and TODO markers.
+ConflictMotions   (vimscript #3991): Motions to and inside SCM conflict markers.
+vim_movement	  (vimscript #4002): Movement over Vim functions with ]m etc.
+vbs_movement      (vimscript #4003): Movement over VBScript classes /
+				     functions / properties / subs with ]m etc.
+dosbatch_movement (vimscript #4004): Movement over MSDOS batch file functions
+				     / labels with ]m etc.
 
 RELATED WORKS								     *
 
@@ -168,10 +175,10 @@ above calls in a ~/.vim/ftplugin/pascal_movement.vim script and are done.
 INSTALLATION					       *CountJump-installation*
 
 This script is packaged as a |vimball|. If you have the "gunzip" decompressor
-in your PATH, simply edit the *.vba.gz package in Vim; otherwise, decompress
+in your PATH, simply edit the *.vmb.gz package in Vim; otherwise, decompress
 the archive first, e.g. using WinZip. Inside Vim, install by sourcing the
 vimball or via the |:UseVimball| command. >
-    vim CountJump.vba.gz
+    vim CountJump*.vmb.gz
     :so %
 To uninstall, use the |:RmVimball| command.
 
@@ -234,6 +241,14 @@ IDEAS							      *CountJump-ideas*
 
 ==============================================================================
 HISTORY							    *CountJump-history*
+
+1.70	03-Sep-2012
+- ENH: Check for searches wrapping around the buffer and issue a corresponding
+  warning, like the built-in searches do. Though the mappings that can be made
+  with CountJump currently do not use 'wrapscan', other plugins that define
+  their own jump functions and use the CountJump#CountJump() function for it
+  may use it. Create function overloads CountJump#CountJumpWithWrapMessage()
+  and CountJump#CountSearchWithWrapMessage().
 
 1.60	27-Mar-2012
 - ENH: Allow motions that do not start with [ / ] and text objects that do not
@@ -330,7 +345,7 @@ Started development.
 
 ==============================================================================
 Copyright: (C) 2009-2012 Ingo Karkat
-The VIM LICENSE applies to this script; see|copyright|.
+The VIM LICENSE applies to this script; see |copyright|.
 
 Maintainer:	Ingo Karkat <ingo@karkat.de>
 ==============================================================================
